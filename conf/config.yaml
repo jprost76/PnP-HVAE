@@ -1,0 +1,8 @@
+defaults:
+  - _self_
+  - exp: deblurring
+
+# logging
+logdir: results
+log_logpzl: False
+log_images: False

@@ -1,0 +1,16 @@
+dataset : ffhq_256
+width : 512
+dec_blocks : "1x2,4m1,4x3,8m4,8x4,16m8,16x9,32m16,32x21,64m32,64x13,128m64,128x7,256m128"
+enc_blocks : "256x3,256d2,128x8,128d2,64x12,64d2,32x17,32d2,16x7,16d2,8x5,8d2,4x5,4d4,1x4"
+width_y : 512
+zdim : 16
+num_mixtures : 10
+image_channels : 3
+image_size : 256
+no_bias_above : 64
+scale_encoblock : True
+bottleneck_multiple : 0.25
+shift : -112.8666757481
+scale : 0.014316842639918864 # = 1. / 69.8478027
+checkpoint_path : VAEs/vdvae/saved_models/ffhq256-iter-1700000-model-ema.th
+

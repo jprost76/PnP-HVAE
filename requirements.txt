@@ -1,0 +1,22 @@
+ConfigArgParse==1.5.3
+hparams @ git+https://github.com/Rayhane-mamah/hparams@3a5b432ea03cbacf517eaa8a6182832cbc7b46ef
+imageio==2.9.0
+matplotlib
+numpy==1.21.4
+opencv-python
+pillow
+scipy==1.7.3
+Send2Trash==1.8.0
+tensorboard==2.10.1
+--find-links https://download.pytorch.org/whl/torch_stable.html
+torch==1.10.0+cu113
+torch-optimizer==0.3.0
+torch-tb-profiler==0.3.1
+torchmetrics==0.6.0
+torchvision==0.11.1+cu113
+tqdm==4.40.1
+cupy-cuda113
+natsort
+hydra-core
+lpips
+Pillow

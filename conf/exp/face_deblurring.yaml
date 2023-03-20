@@ -1,0 +1,21 @@
+
+type: deblurring
+name: celeba
+vae: vdvae
+vae_conf: null # only for patchVDVAE
+input_path: images/celeba/00280.png
+sf: 4 #scale factor
+kernel: kernels/9.npy
+noise_lvl: 8
+T: 0.7 # temperature
+decoder_std: 5
+maxiter: 50
+sample_from_prior_after: null
+
+scheduler:
+  track: 'residual' # 'residual' or 'loss'
+  patience: 10
+  tol: 0.001
+  beta_min: 1
+  beta_max: 1
+  delta_beta: 0.1
