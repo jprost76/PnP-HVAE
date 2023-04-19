@@ -17,7 +17,7 @@ from utils import utils_scheduler as scheduler
 from utils import utils_image as utils
 
 def get_log_path(cfg):
-    path = os.path.join(cfg.logdir, cfg.exp.name, cfg.exp.type)
+    path = os.path.join(cfg.logdir, cfg.exp.name, cfg.mode, cfg.exp.type)
     if cfg.exp.type == 'sr':
         path = os.path.join(path, f'sf_{cfg.exp.sf}')
     path = os.path.join(path, f'std_{cfg.exp.noise_lvl}')

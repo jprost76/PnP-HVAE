@@ -216,6 +216,12 @@ class SRDegradationOperator():
             xpt = _cp_to_tensor(x).type(u.dtype).reshape(self.xshape)
         return xpt, info
 
+    def sample(self, mu_xz, sigma_xz):
+        """
+        sample x ~ p(x|z, y), where p(x|z) ~ N(x; mu_xz, sigma_xz**2) and p(y|x) ~ N(y: Ax, sigma^2 I)
+        """
+        raise NotImplemented #TODO
+
     def get_x0(self):
         C, H, W = self.yshape
         ynp = np.asarray(self.ycp.get()).reshape(self.yshape).transpose(1, 2, 0)
@@ -282,6 +288,20 @@ class InpaintingOperator():
         """
         xk = (self.M*self.y + alpha * self.noise_std**2 * D * u) / (self.M + alpha * self.noise_std**2 * D)
         return xk, 0
+    
+    def sample(self, mu_xz, var_xz):
+        """
+        sample x ~ p(x|z, y), where p(x|z) ~ N(x; mu_xz, var_xz) and p(y|x) ~ N(y: Ax, sigma^2 I)
+        """
+        # cov =  1 / (self.M / (self.noise_std**2) + torch.ones_like(self.M) / var_xz)
+        # mean = cov * (self.M*self.y / self.noise_std**2 + mu_xz / var_xz)
+        # r = torch.randn_like(self.ypt)
+        # x = mean + r*cov**0.5
+        r = self.noise_std**2 / var_xz
+        mean = (self.M*self.y + r*mu_xz) / (self.M + r)
+        std = (self.M/self.noise_std**2 + 1/var_xz)**(-0.5)
+        x = mean + torch.randn_like(mean) * std
+        return x, 0
     
     def neg_log_likelihood(self, xpt, reduce='mean'):
         Mx = self.M * xpt
@@ -372,6 +392,12 @@ class BlurringOperator():
             x, info = linalg.cg(A.T.dot(A)+asig2*Dlo, b=b, x0=x0cp, tol=tol, maxiter=maxiter)
             xpt = _cp_to_tensor(x).type(u.dtype).reshape(self.xshape)
         return xpt, info
+
+    def sample(self, mu_xz, sigma_xz):
+        """
+        sample x ~ p(x|z, y), where p(x|z) ~ N(x; mu_xz, sigma_xz**2) and p(y|x) ~ N(y: Ax, sigma^2 I)
+        """
+        raise NotImplemented #TODO
 
     def get_x0(self):
         return self.ypt
