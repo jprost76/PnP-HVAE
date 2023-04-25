@@ -50,7 +50,7 @@ class JSONlogger:
 
     def log_images(self, images, i):
         for k, im in images.items():
-            impath = os.path.join(self.path, 'it_{}_{}.png'.format(i, k))
+            impath = os.path.join(self.path, f'it_{i:04d}_{k}.png')
             torchvision.utils.save_image(im.detach().cpu(), impath)
 
     def log_eval_hparams(self, hparam_dict, metric_dict):

@@ -67,7 +67,7 @@ class PnPHVAE():
             if self.cfg.mode == 'map':
                 xk, info = self.data_term.data_solution(D=1/var_xzk, u=mu_xzk, alpha=beta, x0=mu_xzk, tol=N*0.001, maxiter=1000 )
             elif self.cfg.mode == 'sample':
-                xk, info = self.data_term.sample(mu_xz=mu_xzk, var_xz=var_xzk)
+                xk, info = self.data_term.sample(mu_xz=mu_xzk, var_xz=var_xzk, tol=N*0.00001, maxiter=1000)
             else: 
                 raise ValueError(f"expecting self.cfg.mode to be \'map\' or \'sample\', got {self.cfg.mode}")
             _, nlog_pz, log_pzl_list, mu_xzk, var_xzk = self.vae.latent_reg(xk, lq=beta, lp=1/self.T**2 - beta, dec_std=self.cfg.exp.decoder_std/255, sample_from_prior_after=self.cfg.exp.sample_from_prior_after, mode=self.cfg.mode)
