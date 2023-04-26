@@ -6,3 +6,7 @@ defaults:
 logdir: results
 log_logpzl: False
 log_images: False
+backprop: False
+optimizer: # only when backprop=True (baseline)
+  _target_: torch.optim.Adam
+  lr: 0.01

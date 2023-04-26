@@ -10,7 +10,7 @@ import torch
 from VAEs import vdvae_wrapper, pvdvae_wrapper
 from misc import load_image_tensor, pt2np, crop, get_fname
 from utils.forward_operators import SRDegradationOperator, BlurringOperator, InpaintingOperator
-from pnphvae import PnPHVAE
+from pnphvae import PnPHVAE, AdamBaseline
 from utils import loggers
 from utils import utils_scheduler as scheduler
 
@@ -82,8 +82,11 @@ def main(cfg : DictConfig) -> None:
         state_fn = scheduler.State_fn(cfg) 
         
         # run 
-        pnpvae = PnPHVAE(cfg, vae, data_term, logger, state_fn)
-        xk1, muk1, metrics = pnpvae.solve(x0)
+        if not cfg.backprop:
+            solver = PnPHVAE(cfg, vae, data_term, logger, state_fn)
+        else:
+            solver = AdamBaseline(cfg, vae, data_term, logger, state_fn)
+        xk1, muk1, metrics = solver.solve(x0)
         xk1 = muk1.cpu()
 
         # lpips (input must be in range [-1, 1])

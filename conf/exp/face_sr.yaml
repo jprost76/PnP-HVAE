@@ -7,10 +7,16 @@ input_path: images/celeba/00014.png
 sf: 4 #scale factor
 kernel: kernels/4.npy
 noise_lvl: 3
+#temperature:
+#  _target_: utils.temperature.Constant
+#  T: 0.5 
+#  name: "const_${exp.temperature.T}"
 temperature:
-  _target_: utils.temperature.Constant
-  T: 0.5 
-  name: "const_${exp.temperature.T}"
+  _target_: utils.temperature.Linear
+  t_min: 0.8
+  t_max: 0.5
+  levels: 66
+  name: "lin_${exp.temperature.t_min}_${exp.temperature.t_max}"
 decoder_std: 5
 maxiter: 50
 sample_from_prior_after: null
