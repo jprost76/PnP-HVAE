@@ -35,7 +35,7 @@ class PnPHVAE():
         zk = self.vae.encode(xk)
         # compute loss
         nlog_pyx = self.data_term.neg_log_likelihood(xk, reduce='mean')
-        log_pz, log_pzl, log_pxz, mu_xzk, var_xzk = self.vae.eval_logpxz(xk, zk, self.T, self.cfg.exp.decoder_std)
+        log_pz, log_pzl, log_pxz, mu_xzk, var_xzk = self.vae.eval_logpxz(xk, zk, self.T, self.cfg.exp.decoder_std/255)
         log_pz = log_pz / N
         log_pxz = log_pxz / N
         Cxk = nlog_pyx - log_pxz - log_pz
@@ -58,16 +58,23 @@ class PnPHVAE():
                 self.logger.log_metrics(dlogpzl, k, prefix="logpzl/")
             if self.cfg.log_images:
                 images = {
-                    'xk': xk.clone()
+                    'b_mu_xz': mu_xzk,
+                    'a_xk': xk.clone()
                 }
                 self.logger.log_images(images, k)
         rk_old = None
         while cont and k < self.cfg.exp.maxiter:
             k += 1
             xk_old = xk.clone()
-            xk, info = self.data_term.data_solution(D=1/var_xzk, u=mu_xzk, alpha=beta, x0=mu_xzk, tol=N*0.001, maxiter=1000)
-            _, nlog_pz, log_pzl_list, mu_xzk, var_xzk = self.vae.latent_reg(xk, beta=beta, T=self.T, dec_std=self.cfg.exp.decoder_std, sample_from_prior_after=self.cfg.exp.sample_from_prior_after)
-            #_, nlog_pz, log_pzl_list, mu_xzk, var_xzk = self.vae.latent_reg(xk, lq=beta, lp=1/self.T**2 - beta, dec_std=self.cfg.exp.decoder_std, sample_from_prior_after=self.cfg.exp.sample_from_prior_after)
+            #xk, info = self.data_term.data_solution(D=1/var_xzk, u=mu_xzk, alpha=beta, x0=mu_xzk, tol=N*0.001, maxiter=1000 )
+            if self.cfg.mode == 'map':
+                xk, info = self.data_term.data_solution(D=1/var_xzk, u=mu_xzk, alpha=beta, x0=mu_xzk, tol=N*0.001, maxiter=1000 )
+            elif self.cfg.mode == 'sample':
+                xk, info = self.data_term.sample(mu_xz=mu_xzk, var_xz=var_xzk, tol=N*0.00001, maxiter=1000)
+            else: 
+                raise ValueError(f"expecting self.cfg.mode to be \'map\' or \'sample\', got {self.cfg.mode}")
+            _, nlog_pz, log_pzl_list, mu_xzk, var_xzk = self.vae.latent_reg(xk, beta=beta, T=self.T, mode=self.cfg.mode, dec_std=self.cfg.exp.decoder_std/255, sample_from_prior_after=self.cfg.exp.sample_from_prior_after)
+
             nlog_pz = nlog_pz / N
             nlog_pyx = self.data_term.neg_log_likelihood(xk, reduce='mean')
             nlogpxz = 0.5 * torch.mean(np.log(2 * np.pi) + torch.log(var_xzk) + (xk-mu_xzk)**2 / var_xzk)
@@ -101,8 +108,8 @@ class PnPHVAE():
                     self.logger.log_metrics(logpzl, k, prefix="logpzl/")
                 if self.cfg.log_images:
                     images = {
-                        'mu_xz': mu_xzk,
-                        'xk': xk
+                        'b_mu_xz': mu_xzk,
+                        'a_xk': xk
                     }
                     self.logger.log_images(images, k)
             beta, cont = self.state_fn.step(loss=Cbxk.item(), residual=rk.item())
@@ -143,7 +150,7 @@ class AdamBaseline():
         optim = instantiate(self.cfg.optimizer, params=params)
         # compute loss
         nlog_pyx = self.data_term.neg_log_likelihood(xk, reduce='mean')
-        log_pz, log_pzl, log_pxz, _, _ = self.vae.eval_logpxz(xk, zk, self.T, decoder_std=self.cfg.exp.decoder_std)
+        log_pz, log_pzl, log_pxz, _, _ = self.vae.eval_logpxz(xk, zk, self.T, decoder_std=self.cfg.exp.decoder_std/255)
         log_pz = log_pz / N
         log_pxz = log_pxz / N
         Cxk = nlog_pyx - log_pxz - log_pz
@@ -177,7 +184,7 @@ class AdamBaseline():
             xk_old = xk.clone()
             optim.zero_grad()
             nlog_pyx = self.data_term.neg_log_likelihood(xk, reduce='mean')
-            log_pz, log_pzl, log_pxz, _, _ = self.vae.eval_logpxz(xk, zk, self.T, decoder_std=self.cfg.exp.decoder_std)
+            log_pz, log_pzl, log_pxz, _, _ = self.vae.eval_logpxz(xk, zk, self.T, decoder_std=self.cfg.exp.decoder_std/255)
             log_pz = log_pz / N
             log_pxz = log_pxz / N
             Cxk = nlog_pyx - log_pxz - log_pz

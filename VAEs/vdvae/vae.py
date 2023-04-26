@@ -6,9 +6,9 @@ import numpy as np
 import itertools
 
 try:
-    from VAEs.vdvae.vae_helpers import HModule, get_1x1, get_3x3, DmolNet, draw_gaussian_diag_samples, gaussian_analytical_kl, gaussian_ll
+    from VAEs.vdvae.vae_helpers import HModule, get_1x1, get_3x3, DmolNet, draw_gaussian_diag_samples, draw_gaussian_diag_samples_covariance, gaussian_analytical_kl, gaussian_ll, gaussian_product
 except (ImportError, ValueError):
-    from vae_helpers import HModule, get_1x1, get_3x3, DmolNet, draw_gaussian_diag_samples, gaussian_analytical_kl, gaussian_ll
+    from vae_helpers import HModule, get_1x1, get_3x3, DmolNet, draw_gaussian_diag_samples, draw_gaussian_diag_samples_covariance, gaussian_analytical_kl, gaussian_ll, gaussian_product
 
 class Block(nn.Module):
     def __init__(self, in_width, middle_width, out_width, down_rate=None, residual=False, use_3x3=True, zero_last=False):
@@ -150,7 +150,7 @@ class DecBlock(nn.Module):
             ll = None
         return z, x, ll
 
-    def sample_reg(self, x, zx, acts, a, b, t_prior=1, t=None):
+    def sample_reg(self, x, zx, acts, a, b, t_prior=1, t=None, mode='map'):
         # return arg min -a.log q(z|x) -b.log p(z)
         # qv : log(sigma)
         qm, qv = self.enc(torch.cat([x, acts], dim=1)).chunk(2, dim=1)
@@ -159,18 +159,24 @@ class DecBlock(nn.Module):
         pS = (torch.exp(pv) * t_prior) ** 2
         qS = torch.exp(qv) ** 2
         x = x + xpp
-        if zx is None:
+        if mode == 'map':
+            #zreg = (a*qm*pS + b*pm*qS) / (a*pS + b*qS) 
+            zreg= (a*qm/qS + b*pm/pS) / (a/qS + b/pS)
+        elif mode == 'sample':
+            m, S = gaussian_product(qm, qS/a, pm, pS/b) # S : covariance Cov
             if t is not None:
-                zx = draw_gaussian_diag_samples(qm, qv + torch.ones_like(qv) * np.log(t))
+                zreg = draw_gaussian_diag_samples_covariance(m, t**2*S)
             else:
-                zx = draw_gaussian_diag_samples(qm, qv)
-        #zreg = (lmbd * pm / pS + zx) / (lmbd /pS + 1) # arg min_zl lmbd * log p(zl|z_{<l}) + 1/2 ||zx-zl||^2
-        zreg = (a*qm/qS + b*pm/pS) / (a/qS + b/pS)
+                # t=1
+                zreg = draw_gaussian_diag_samples_covariance(m, S)
+        else:
+            raise ValueError(f"expecting mode to be either \'map\' or \'sample\', got {mode}")
+        
         kl = gaussian_analytical_kl(qm, pm, qv, pv)
         ll = gaussian_ll(pm, pv, zreg)
         return zreg, x, kl, ll # return regularized latent log_likelyhood
 
-    def sample_proj(self, x, zx, acts, p, t=None):
+    def sample_proj(self, x, zx, acts, p, t=None, mode='map'):# TODO: mode in 'sample' , 'map'
         # qv : log(sigma)
         qm, qv = self.enc(torch.cat([x, acts], dim=1)).chunk(2, dim=1)
         feats = self.prior(x)
@@ -243,11 +249,11 @@ class DecBlock(nn.Module):
         xs[self.base] = x
         return xs, z
 
-    def forward_reg(self, xs, zx, activations, a, b, t_prior, get_latents=False, t=None):
+    def forward_reg(self, xs, zx, activations, a, b, t_prior, get_latents=False, t=None, mode='map'):
         x, acts = self.get_inputs(xs, activations)
         if self.mixin is not None:
             x = x + F.interpolate(xs[self.mixin][:, :x.shape[1], ...], scale_factor=self.base // self.mixin)
-        z, x, kl, ll = self.sample_reg(x, zx, acts, a, b, t_prior=t_prior, t=t)
+        z, x, kl, ll = self.sample_reg(x, zx, acts, a, b, t_prior=t_prior, t=t, mode=mode)
         x = x + self.z_fn(z)
         x = self.resnet(x)
         xs[self.base] = x
@@ -367,7 +373,7 @@ class Decoder(HModule):
         xs[self.H.image_size] = self.final_fn(xs[self.H.image_size])
         return xs[self.H.image_size], LL
 
-    def forward_reg(self, activations, latents_x, beta, T, get_latents=False, t=None, nmax=None):
+    def forward_reg(self, activations, latents_x, beta, T, get_latents=False, t=None, nmax=None, mode='map'):
         nmax = len(self.dec_blocks) if nmax is None else nmax
         stats = []
         xs = {a.shape[2]: a for a in self.bias_xs}
@@ -377,7 +383,7 @@ class Decoder(HModule):
             except TypeError:
                 temp = t
             if idx < nmax:
-                xs, block_stats = block.forward_reg(xs, zl, activations, a=beta, b=1-beta*T[idx]**2, t_prior=T[idx], get_latents=get_latents, t=temp)
+                xs, block_stats = block.forward_reg(xs, zl, activations, a=beta, b=1-beta*T[idx]**2, t_prior=T[idx], get_latents=get_latents, t=temp, mode=mode)
                 stats.append(block_stats)
             else:
                 #xs, block_stats = block.forward_uncond(xs, temp)
@@ -456,9 +462,9 @@ class VAE(HModule):
         px_z, ll = self.decoder.forward_manual_latents(n_batch, latents, t=t, compute_ll=True)
         return self.decoder.out_net.sample(px_z, detach=detach), ll
 
-    def forward_with_latent_reg(self, x, beta, T, get_latents=False, presample_z=False, t=None, nmax=None, quantize=False):
+    def forward_with_latent_reg(self, x, beta, T, get_latents=False, presample_z=False, t=None, nmax=None, quantize=False, mode='sample'):
         """_summary_
-        compute p(x|z), where z = (z_l)_l is computed as
+        compute p(x|z), where z = (z_l)_l is computed as (or sampled from)
         z_l = \arg\min_{u_l} -beta \log q(u_l|z<l, x) - (1/T[l]**2 - beta) \log p(u_l|z<l) for 0<=l<L
         """
         x = self.normalize_input(x)
@@ -468,7 +474,7 @@ class VAE(HModule):
             latents_x = [d['z'] for d in stats]
         else:
             latents_x = [None for _ in self.decoder.dec_blocks]
-        px_z, stats = self.decoder.forward_reg(activations, latents_x, beta, T, get_latents=get_latents, t=t, nmax=nmax)
+        px_z, stats = self.decoder.forward_reg(activations, latents_x, beta, T, get_latents=get_latents, t=t, nmax=nmax, mode=mode)
         mean_xz, var_xz = self.decoder.out_net.get_dmol_stats(px_z)
         samples = self.decoder.out_net.sample(px_z, quantize=quantize)
         return samples, stats, mean_xz, var_xz

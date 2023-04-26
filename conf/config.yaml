@@ -3,6 +3,7 @@ defaults:
   - exp: bsd_deblurring
 
 # logging
+mode: 'map' # 'map' or 'sample'
 logdir: results
 log_logpzl: False
 log_images: False

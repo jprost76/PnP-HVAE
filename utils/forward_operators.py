@@ -48,6 +48,7 @@ def _cp_to_tensor(cparray):
 def _tensor_to_cp(tensor):
     if isinstance(tensor, torch.Tensor):
         cx = cp.from_dlpack(to_dlpack(tensor))
+        #cx = cp.asarray(tensor)
     else:
         cx = tensor
     return cx
@@ -216,6 +217,33 @@ class SRDegradationOperator():
             xpt = _cp_to_tensor(x).type(u.dtype).reshape(self.xshape)
         return xpt, info
 
+    def sample(self, mu_xz, var_xz, tol=None, maxiter=None):
+        """
+        sample x ~ p(x|z, y), where p(x|z) ~ N(x; mu_xz, sigma_xz**2) and p(y|x) ~ N(y: Ax, sigma^2 I)
+        we use gaussian sampling by local pertubation
+        (https://proceedings.neurips.cc/paper_files/paper/2010/file/d09bf41544a3365a46c9077ebb5e35c3-Paper.pdf)
+        """
+        # apply pertubation
+        pmu = mu_xz + torch.randn_like(mu_xz)*var_xz**0.5
+        pmu_cp = _tensor_to_cp(pmu).flatten()
+        py_cp = self.ycp + cp.random.normal(0, self.noise_std, self.ycp.shape)
+
+        mu_xzcp = _tensor_to_cp(mu_xz).flatten()
+        A = self.SH
+        N = len(pmu_cp)
+        # inverse covariance of x|z
+        cx_inv = _tensor_to_cp(1/var_xz).flatten()
+        Cx_inv = linalg.LinearOperator(
+                shape=(N, N),
+                matvec = lambda x: x *  cx_inv,
+                rmatvec = lambda x: x * cx_inv
+            )
+        sig2 = self.noise_std**2
+        b = A.rmatvec(py_cp) + sig2 * Cx_inv.dot(pmu_cp)
+        x, info = linalg.cg(A.T.dot(A)+sig2*Cx_inv, b=b, x0=mu_xzcp, tol=tol, maxiter=maxiter)
+        xpt = _cp_to_tensor(x).type(mu_xz.dtype).reshape(self.xshape)
+        return xpt, info
+        
     def get_x0(self):
         C, H, W = self.yshape
         ynp = np.asarray(self.ycp.get()).reshape(self.yshape).transpose(1, 2, 0)
@@ -282,6 +310,20 @@ class InpaintingOperator():
         """
         xk = (self.M*self.y + alpha * self.noise_std**2 * D * u) / (self.M + alpha * self.noise_std**2 * D)
         return xk, 0
+    
+    def sample(self, mu_xz, var_xz, tol=None, maxiter=None):
+        """
+        sample x ~ p(x|z, y), where p(x|z) ~ N(x; mu_xz, var_xz) and p(y|x) ~ N(y: Ax, sigma^2 I)
+        """
+        # cov =  1 / (self.M / (self.noise_std**2) + torch.ones_like(self.M) / var_xz)
+        # mean = cov * (self.M*self.y / self.noise_std**2 + mu_xz / var_xz)
+        # r = torch.randn_like(self.ypt)
+        # x = mean + r*cov**0.5
+        r = self.noise_std**2 / var_xz
+        mean = (self.M*self.y + r*mu_xz) / (self.M + r)
+        std = (self.M/self.noise_std**2 + 1/var_xz)**(-0.5)
+        x = mean + torch.randn_like(mean) * std
+        return x, 0
     
     def neg_log_likelihood(self, xpt, reduce='mean'):
         Mx = self.M * xpt
@@ -371,6 +413,36 @@ class BlurringOperator():
             b = self.Atycp + asig2*Dlo.dot(ucp)
             x, info = linalg.cg(A.T.dot(A)+asig2*Dlo, b=b, x0=x0cp, tol=tol, maxiter=maxiter)
             xpt = _cp_to_tensor(x).type(u.dtype).reshape(self.xshape)
+        return xpt, info
+
+    def sample(self, mu_xz, var_xz, tol=None, maxiter=None):
+        """
+        sample x ~ p(x|z, y), where p(x|z) ~ N(x; mu_xz, sigma_xz**2) and p(y|x) ~ N(y: Ax, sigma^2 I)
+        we use gaussian sampling by local pertubation
+        (https://proceedings.neurips.cc/paper_files/paper/2010/file/d09bf41544a3365a46c9077ebb5e35c3-Paper.pdf)
+        """
+        # apply pertubation
+        pmu = mu_xz + torch.randn_like(mu_xz)*var_xz**0.5
+        #py = self.ypt + torch.randn_like(self.ypt) * self.noise_std
+        py_cp = self.ycp + cp.random.normal(0, self.noise_std, self.ycp.shape)
+        # print("py : ", py.device)
+
+        mu_xzcp = _tensor_to_cp(mu_xz).flatten()
+        pmu_cp = _tensor_to_cp(pmu).flatten()
+        #py_cp = _tensor_to_cp(py)
+        A = self.H
+        N = len(pmu_cp)
+        # inverse covariance of x|z
+        cx_inv = _tensor_to_cp(1/var_xz).flatten()
+        Cx_inv = linalg.LinearOperator(
+                shape=(N, N),
+                matvec = lambda x: x *  cx_inv,
+                rmatvec = lambda x: x * cx_inv
+            )
+        sig2 = self.noise_std**2
+        b = A.rmatvec(py_cp) + sig2 * Cx_inv.dot(pmu_cp)
+        x, info = linalg.cg(A.T.dot(A)+sig2*Cx_inv, b=b, x0=mu_xzcp, tol=tol, maxiter=maxiter)
+        xpt = _cp_to_tensor(x).type(mu_xz.dtype).reshape(self.xshape)
         return xpt, info
 
     def get_x0(self):

@@ -14,8 +14,28 @@ def draw_gaussian_diag_samples(mu, logsigma):
     eps = torch.empty_like(mu).normal_(0., 1.)
     return torch.exp(logsigma) * eps + mu
 
+@torch.jit.script
+def draw_gaussian_diag_samples_covariance(mu, covariance):
+    eps = torch.empty_like(mu).normal_(0., 1.)
+    return torch.sqrt(covariance) * eps + mu
+
 def gaussian_ll(mu, logsigma, z):
     return - 0.5 * torch.sum(np.log(2 * np.pi) + 2*logsigma + (z-mu)**2 / logsigma.exp()**2) 
+
+def gaussian_product(m1, S1, m2, S2):
+    """return m and S so that N(m, S) \propto N(m1, S1)*N(m2, S2)
+    Args:
+        m1 (torch.Tensor): mean of gaussian 1
+        S1 (torch.Tensor): (diagonal) Covariance matrix of gaussian 1
+        m2 (torch.Tensor): mean of gaussian 2
+        S2 (torch.Tensor): (diagonal) Covariance matrix of gaussian 1
+    """
+    #Q = (S1 + S2)
+    #m = (S2*m1 + S1*m1) / Q 
+    m = (m1/S1 + m2/S2) / (1/S1 + 1/S2)
+    #S = (S1*S2) / Q# = 1 / (1/S1 + 1/S2)
+    S = 1 / (1/S1 + 1/S2)
+    return m, S
 
 def get_conv(in_dim, out_dim, kernel_size, stride, padding, zero_bias=True, zero_weights=False, groups=1, scaled=False):
     c = nn.Conv2d(in_dim, out_dim, kernel_size, stride, padding, groups=groups)
