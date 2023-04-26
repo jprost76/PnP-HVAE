@@ -75,7 +75,7 @@ def main(cfg : DictConfig) -> None:
         logdir = get_log_path(cfg)
         imname = os.path.splitext(path.split('/')[-1])[0]
         vaename = 'vdvae' if cfg.exp.vae == 'vdvae' else cfg.exp.vae_conf
-        xpname = f'{imname}_{vaename}_T_{cfg.exp.T}_sdec_{cfg.exp.decoder_std}'
+        xpname = f'{imname}_{vaename}_T_{cfg.exp.temperature.name}_sdec_{cfg.exp.decoder_std}'
         logger = loggers.JSONlogger(cfg, logdir, xpname) 
 
         # state fonction

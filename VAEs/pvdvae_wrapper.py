@@ -32,8 +32,8 @@ class PatchVDVAEWrapper(BaseVAE):
         self.vae = vae
         self.receptive_field = rf
 
-    def eval_logpxz(self, x, z, decoder_std):
-        pxz, log_pzk_list = self.vae.forward_manual_latents(z)
+    def eval_logpxz(self, x, z, T, decoder_std):
+        pxz, log_pzk_list = self.vae.forward_manual_latents(z, T=T)
         mu_xz, var_xz = torch.chunk(pxz, chunks=2, dim=1)  # range[-1, 1]
         mu_xz = torch.clamp((mu_xz + 1) / 2, 0, 1) # [-1, 1] -> [0, 1]
         mu_xz[torch.isnan(mu_xz)] = x[torch.isnan(mu_xz)] 
@@ -54,11 +54,11 @@ class PatchVDVAEWrapper(BaseVAE):
             _, _, _, latents = self.vae.forward_get_latents(x)
         return latents
 
-    def latent_reg(self, x, lq, lp, sample_from_prior_after=None, dec_std=None):
+    def latent_reg(self, x, beta, T, sample_from_prior_after=None, dec_std=None):
         # [0, 1] -> [-1, 1]
         xinput = torch.clamp(x * 2 - 1, -1, 1)
         with torch.no_grad():
-            pxz, _, _, log_pzk_list = self.vae.forward_with_latent_reg(xinput, lq=lq, lp=lp, sample_from_prior_after=sample_from_prior_after)
+            pxz, _, _, log_pzk_list = self.vae.forward_with_latent_reg(xinput, beta=beta, T=T, sample_from_prior_after=sample_from_prior_after)
         xrec = self.vae.top_down.sample(pxz)
         xrec = xrec.clamp(0, 1)
         mu_xz, var_xz = torch.chunk(pxz, chunks=2, dim=1)  # range[-1, 1]

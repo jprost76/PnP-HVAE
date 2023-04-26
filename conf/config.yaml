@@ -1,6 +1,6 @@
 defaults:
   - _self_
-  - exp: deblurring
+  - exp: bsd_deblurring
 
 # logging
 logdir: results

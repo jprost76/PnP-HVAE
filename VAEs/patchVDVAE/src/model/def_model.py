@@ -48,9 +48,9 @@ class UniversalAutoEncoder(nn.Module):
 
         return outputs, posterior_dist_list, prior_kl_dist_list, latent_list
         
-    def forward_with_latent_reg(self, x, lq, lp, variate_masks=None, sample_from_prior_after=None):
+    def forward_with_latent_reg(self, x, beta, T, variate_masks=None, sample_from_prior_after=None):
         """reconstruct x while regularizing the latent code toward the prior:
-        z_l = \arg\min_{u_l} -lq \log q(u_l|z<l, x) - lp \log p(u_l|z<l) 
+        z_l = \arg\min_{u_l} -beta \log q(u_l|z<l, x) - (1/T[l]**2 - beta) \log p(u_l|z<l) 
         """
         if variate_masks is None:
             variate_masks = [None] * (sum(hparams.model.down_n_blocks_per_res) + len(hparams.model.down_strides))
@@ -58,7 +58,7 @@ class UniversalAutoEncoder(nn.Module):
             assert len(variate_masks) == sum(hparams.model.down_n_blocks_per_res) + len(hparams.model.down_strides)
 
         skip_list = self.bottom_up(x)
-        outputs, posterior_dist_list, prior_kl_dist_list, log_pzk_list = self.top_down.forward_with_latent_reg(skip_list, lq, lp, variate_masks=variate_masks, sample_from_prior_after=sample_from_prior_after)
+        outputs, posterior_dist_list, prior_kl_dist_list, log_pzk_list = self.top_down.forward_with_latent_reg(skip_list, beta, T, variate_masks=variate_masks, sample_from_prior_after=sample_from_prior_after)
 
         return outputs, posterior_dist_list, prior_kl_dist_list, log_pzk_list
 
@@ -74,6 +74,6 @@ class UniversalAutoEncoder(nn.Module):
         xrec = self.top_down.sample(pxz)
         return xrec, posterior_dist_list, prior_kl_dist_list
 
-    def forward_manual_latents(self, latents, sample_from_prior_after=None):
-        pxz, log_pzk_list = self.top_down.forward_manual_latents(latents, sample_from_prior_after)
+    def forward_manual_latents(self, latents, T, sample_from_prior_after=None):
+        pxz, log_pzk_list = self.top_down.forward_manual_latents(latents, T=T, sample_from_prior_after=sample_from_prior_after)
         return pxz, log_pzk_list

@@ -389,7 +389,7 @@ class LevelBlockDown(nn.Module):
 
         return y, posterior_dist, prior_kl_dist
 
-    def forward_with_latent_reg(self, x_skip, y, lq, lp, variate_mask=None):
+    def forward_with_latent_reg(self, x_skip, y, lq, lp, t, variate_mask=None): 
         #return z = arg min -lq . log q(z|x) -lp log p(z)
         if self.first_block:
             # no features from the top in the first block
@@ -427,7 +427,7 @@ class LevelBlockDown(nn.Module):
             #z_post = variate_mask * z_post + (1. - variate_mask) * z_prior_kl
             z_reg = variate_mask * z_reg + (1. - variate_mask) * z_prior_kl
         
-        log_pzk = gaussian_ll(prior_kl_dist, z_reg)
+        log_pzk = gaussian_ll(prior_kl_dist, z_reg, t=t) 
         
         # Project z and merge back into main stream
         z_reg = self.z_projection(z_reg)
@@ -524,7 +524,7 @@ class LevelBlockDown(nn.Module):
         return y, posterior_dist, prior_kl_dist, z_post
 
 
-    def forward_manual_latents(self, y, z):
+    def forward_manual_latents(self, y, z, T):
         if self.strides > 1:
             y = self.unpool(y)
 
@@ -536,7 +536,7 @@ class LevelBlockDown(nn.Module):
             y = y + kl_residual
 
         _, prior_kl_dist = self.sampler(self.prior_layer, y_prior, temperature=1)
-        log_pzk = gaussian_ll(prior_kl_dist, z)
+        log_pzk = gaussian_ll(prior_kl_dist, z, t=T)
 
         proj_z = self.z_projection(z)
 

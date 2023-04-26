@@ -129,14 +129,14 @@ def gaussian_ll_std(mu, sigma, z):
     log2pi = torch.log(torch.tensor(2*torch.pi))
     return - 0.5 * torch.sum(log2pi + 2*torch.log(sigma) + (z-mu)**2 / sigma**2) 
 
-def gaussian_ll(stats, z):
+def gaussian_ll(stats, z, t=1):
     if hparams.model.distribution_base == 'std':
         mp, stdp = stats
-        ll = gaussian_ll_std(mp, stdp, z)
     elif hparams.model.distribution_base == 'logstd':
         mp, logstdp = stats
         stdp = torch.exp(hparams.model.gradient_smoothing_beta * logstdp)
-        ll = gaussian_ll_std(mp, stdp, z)
     else:
         raise ValueError(f'distribution base {hparams.model.distribution_base} not known!!')
+    stdp = stdp / t
+    ll = gaussian_ll_std(mp, stdp, z)
     return ll

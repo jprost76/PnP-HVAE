@@ -270,7 +270,7 @@ class TopDown(torch.nn.Module):
 
         return y, posterior_dist_list, prior_kl_dist_list,
 
-    def forward_with_latent_reg(self, skip_list, lq, lp, variate_masks=None, sample_from_prior_after=None):
+    def forward_with_latent_reg(self, skip_list, beta, T, variate_masks=None, sample_from_prior_after=None):
         if sample_from_prior_after is None:
             sample_from_prior_after = len (self.levels_down_upsample) + sum([len(level) for level in self.levels_down])
     #return z = arg max lq . log q(z|x) + lp log p(z)
@@ -285,10 +285,12 @@ class TopDown(torch.nn.Module):
         for i, (level_down_upsample, level_down, skip_input) in enumerate(
                 zip(self.levels_down_upsample, self.levels_down, skip_list)):
             if layer_idx < sample_from_prior_after:
+                lq = beta
+                lp = 1/T[layer_idx]**2 - beta
                 y, posterior_dist, prior_kl_dist, log_pzk = level_down_upsample.forward_with_latent_reg(skip_input, y,
-                                                                     lq, lp, variate_mask=variate_masks[layer_idx])
+                                                                     lq, lp, t=T[layer_idx], variate_mask=variate_masks[layer_idx])
             else:
-                y, _, log_pzk = level_down_upsample.sample_from_prior(y, temperature=0.99)# TODO: control temperature
+                y, _, log_pzk = level_down_upsample.sample_from_prior(y, temperature=T[layer_idx])
                 posterior_dist = None
                 prior_kl_dist = None
             layer_idx += 1
@@ -299,9 +301,11 @@ class TopDown(torch.nn.Module):
 
             for j, layer in enumerate(level_down):
                 if layer_idx < sample_from_prior_after:
-                    y, posterior_dist, prior_kl_dist, log_pzk = layer.forward_with_latent_reg(skip_input, y, lq, lp, variate_mask=variate_masks[layer_idx])
+                    lq = beta
+                    lp = 1/T[layer_idx]**2 - beta
+                    y, posterior_dist, prior_kl_dist, log_pzk = layer.forward_with_latent_reg(skip_input, y, lq, lp, t=T[layer_idx], variate_mask=variate_masks[layer_idx])
                 else:
-                    y, _, log_pzk = layer.sample_from_prior(y, temperature=0.1)# TODO: control temperature
+                    y, _, log_pzk = layer.sample_from_prior(y, temperature=T[layer_idx])
                     posterior_dist = None
                     prior_kl_dist = None
                 layer_idx += 1
@@ -407,7 +411,7 @@ class TopDown(torch.nn.Module):
 
         return y, posterior_dist_list, prior_kl_dist_list, latents_list
 
-    def forward_manual_latents(self, latents, sample_from_prior_after=None):
+    def forward_manual_latents(self, latents, T, sample_from_prior_after=None):
         if sample_from_prior_after is None:
             sample_from_prior_after = len (self.levels_down_upsample) + sum([len(level) for level in self.levels_down])
 
@@ -418,7 +422,7 @@ class TopDown(torch.nn.Module):
         for i, (level_down_upsample, level_down) in enumerate(
                 zip(self.levels_down_upsample, self.levels_down)):
             if layer_idx < sample_from_prior_after:
-                y, log_pzk = level_down_upsample.forward_manual_latents(y,z=latents[layer_idx])
+                y, log_pzk = level_down_upsample.forward_manual_latents(y,z=latents[layer_idx], T=T[layer_idx])
                 log_pzk_list.append(log_pzk)
             else:
                 y, _, log_pzk  = level_down_upsample.sample_from_prior(y, temperature=0.1)# TODO: control temperature
@@ -427,7 +431,7 @@ class TopDown(torch.nn.Module):
 
             for j, layer in enumerate(level_down):
                 if layer_idx < sample_from_prior_after:
-                    y, log_pzk = layer.forward_manual_latents(y, z=latents[layer_idx])
+                    y, log_pzk = layer.forward_manual_latents(y, z=latents[layer_idx], T=T[layer_idx])
                     log_pzk_list.append(log_pzk)
                 else:
                     y, _, log_pzk = layer.sample_from_prior(y, temperature=0.1)

@@ -1,6 +1,8 @@
 import math
 import torch
 import numpy as np
+from hydra.utils import instantiate
+
 
 def compute_psnr(img1, img2):
     # img1 and img2 have range [0, 1]
@@ -18,7 +20,8 @@ class PnPHVAE():
         self.data_term = data_term
         self.logger = logger
         self.state_fn = state_fn
-        self.T = cfg.exp.T
+        #self.T = cfg.exp.T
+        self.T = instantiate(cfg.exp.temperature)
 
     def solve(self, xinit, xgt=None):
         start = torch.cuda.Event(enable_timing=True)
@@ -32,11 +35,11 @@ class PnPHVAE():
         zk = self.vae.encode(xk)
         # compute loss
         nlog_pyx = self.data_term.neg_log_likelihood(xk, reduce='mean')
-        log_pz, log_pzl, log_pxz, mu_xzk, var_xzk = self.vae.eval_logpxz(xk, zk, self.cfg.exp.decoder_std)
+        log_pz, log_pzl, log_pxz, mu_xzk, var_xzk = self.vae.eval_logpxz(xk, zk, self.T, self.cfg.exp.decoder_std)
         log_pz = log_pz / N
         log_pxz = log_pxz / N
-        Cxk = nlog_pyx - log_pxz - log_pz/self.T**2
-        Cbxk = nlog_pyx - beta*log_pxz - log_pz/self.T**2 
+        Cxk = nlog_pyx - log_pxz - log_pz
+        Cbxk = nlog_pyx - beta*log_pxz - log_pz 
         if self.logger is not None:
             metrics = {
                 '-log p(y|x)': nlog_pyx.item(),
@@ -62,13 +65,14 @@ class PnPHVAE():
         while cont and k < self.cfg.exp.maxiter:
             k += 1
             xk_old = xk.clone()
-            xk, info = self.data_term.data_solution(D=1/var_xzk, u=mu_xzk, alpha=beta, x0=mu_xzk, tol=N*0.001, maxiter=1000 )
-            _, nlog_pz, log_pzl_list, mu_xzk, var_xzk = self.vae.latent_reg(xk, lq=beta, lp=1/self.T**2 - beta, dec_std=self.cfg.exp.decoder_std, sample_from_prior_after=self.cfg.exp.sample_from_prior_after)
+            xk, info = self.data_term.data_solution(D=1/var_xzk, u=mu_xzk, alpha=beta, x0=mu_xzk, tol=N*0.001, maxiter=1000)
+            _, nlog_pz, log_pzl_list, mu_xzk, var_xzk = self.vae.latent_reg(xk, beta=beta, T=self.T, dec_std=self.cfg.exp.decoder_std, sample_from_prior_after=self.cfg.exp.sample_from_prior_after)
+            #_, nlog_pz, log_pzl_list, mu_xzk, var_xzk = self.vae.latent_reg(xk, lq=beta, lp=1/self.T**2 - beta, dec_std=self.cfg.exp.decoder_std, sample_from_prior_after=self.cfg.exp.sample_from_prior_after)
             nlog_pz = nlog_pz / N
             nlog_pyx = self.data_term.neg_log_likelihood(xk, reduce='mean')
             nlogpxz = 0.5 * torch.mean(np.log(2 * np.pi) + torch.log(var_xzk) + (xk-mu_xzk)**2 / var_xzk)
-            Cxk = nlog_pyx + nlogpxz + nlog_pz/self.T**2
-            Cbxk = nlog_pyx + beta*nlogpxz + nlog_pz/self.T**2
+            Cxk = nlog_pyx + nlogpxz + nlog_pz
+            Cbxk = nlog_pyx + beta*nlogpxz + nlog_pz
             rk = torch.mean((xk-xk_old)**2)
             if rk_old is not None:
                 Lk = rk/rk_old
@@ -128,11 +132,11 @@ def adam_baseline(vae, data_term, xinit, lr, state_fn, logger, T, log_images=Fal
     optim = torch.optim.Adam([xk]+zk, lr=lr)
     # compute loss
     nlog_pyx = data_term.neg_log_likelihood(xk, reduce='mean')
-    log_pz, log_pzl, log_pxz, _, _ = vae.eval_logpxz(vae, xk, zk, dec_std=decoder_std)
+    log_pz, log_pzl, log_pxz, _, _ = vae.eval_logpxz(vae, xk, zk, T, dec_std=decoder_std) # TODO: remove T (already in eval_logpxz)
     log_pz = log_pz / N
     log_pxz = log_pxz / N
-    Cxk = nlog_pyx - log_pxz - log_pz/T**2
-    Cbxk = nlog_pyx - beta*log_pxz - log_pz/T**2
+    Cxk = nlog_pyx - log_pxz - log_pz/T**2 # TODO: remove T (already in eval_logpxz)
+    Cbxk = nlog_pyx - beta*log_pxz - log_pz/T**2 # TODO: remove T (already in eval_logpxz)
     if logger is not None:
         metrics = {
             '-log p(y|x)': nlog_pyx.item(),

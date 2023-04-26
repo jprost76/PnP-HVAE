@@ -6,7 +6,16 @@ vae_conf: vdvae64 # only for patchVDVAE
 input_path: images/CBSD10/19021.jpg
 kernel: kernels/11.npy # kernels used in the paper kernels/... : 4.npy 7.npy 9.npy 11.npy
 noise_lvl: 7.65 #                 2.55, 7.65, 12.75
-T: 0.8 # temperature recommended: 0.95, 0.80, 0.60
+#temperature:
+#  _target_: utils.temperature.Constant
+#  T: 0.8 # temperature recommended: 0.95, 0.80, 0.60
+#  name: "const_${exp.temperature.T}"
+temperature:
+  _target_: utils.temperature.Linear
+  t_min: 0.99
+  t_max: 0.65
+  levels: 32
+  name: "lin_${exp.temperature.t_min}_${exp.temperature.t_max}"
 decoder_std: 10
 maxiter: 50
 sample_from_prior_after: null
