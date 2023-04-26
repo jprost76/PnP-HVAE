@@ -45,9 +45,9 @@ class VDVAEWrapper(BaseVAE):
         self.vae = vae
         self.receptive_field = rf
 
-    def eval_logpxz(self, x, z, decoder_std):
+    def eval_logpxz(self, x, z, T, decoder_std):
         xtarget = x
-        log_pzl, log_pxz, mu_xz, var_xz = self.vae.eval_logpxz(xtarget, z)
+        log_pzl, log_pxz, mu_xz, var_xz = self.vae.eval_logpxz(xtarget, z, T)
         log_pz = sum(log_pzl)
         if decoder_std is not None:
             var_xz = torch.ones_like(mu_xz) * decoder_std**2
@@ -55,11 +55,11 @@ class VDVAEWrapper(BaseVAE):
             log_pxz = gaussian_log_likelihood(x, mu_xz, var_xz)
         return log_pz, log_pzl, log_pxz, mu_xz, var_xz
 
-    def latent_reg(self, x, lq, lp, sample_from_prior_after=None, dec_std=None):
+    def latent_reg(self, x, beta, T, sample_from_prior_after=None, dec_std=None):
         # input x should be in range [0, 1]
         with torch.no_grad():
             x = torch.clamp(x*256, 0, 255)
-            x, stats, mu_xz, var_xz = self.vae.forward_with_latent_reg(x, a=lq, b=lp, quantize=False, nmax=sample_from_prior_after) 
+            x, stats, mu_xz, var_xz = self.vae.forward_with_latent_reg(x, beta=beta, T=T, quantize=False, nmax=sample_from_prior_after) 
             x += 4/255 # correct bias due 5 bit quantization bug
             mu_xz += 4/255
         x = x.clamp(0, 1)

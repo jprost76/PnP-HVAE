@@ -6,14 +6,23 @@ vae_conf: null # only for patchVDVAE
 input_path: images/celeba/00000.png
 mask: masks/00000.npy
 noise_lvl: 3
-T: 0.5 # temperature
+#temperature:
+#  _target_: utils.temperature.Constant
+#  T: 0.5 
+#  name: "const_${exp.temperature.T}"
+temperature:
+  _target_: utils.temperature.Linear
+  t_min: 0.3
+  t_max: 0.8
+  levels: 66
+  name: "lin_${exp.temperature.t_min}_${exp.temperature.t_max}"
 decoder_std: 10
 maxiter: 100
 sample_from_prior_after: null
 
 scheduler:
   track: 'residual' # 'residual' or 'loss'
-  patience: 50
+  patience: 100
   tol: 0.00001
   beta_min: 1
   beta_max: 1
