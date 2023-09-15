@@ -6,11 +6,11 @@ import torch.nn.functional as F
 import numpy as np
 
 try:
-    from .latent_layers import GaussianLatentLayer, FirstGaussianLatentLayer, interpolate, gaussian_ll
+    from .latent_layers import GaussianLatentLayer, FirstGaussianLatentLayer, interpolate, gaussian_ll, calculate_z, gaussian_product
     #from ..utils.utils import get_same_padding
     from .conv2d import Conv2d
 except (ImportError, ValueError, ModuleNotFoundError):
-    from model.latent_layers import GaussianLatentLayer, interpolate
+    from model.latent_layers import GaussianLatentLayer, FirstGaussianLatentLayer, interpolate, gaussian_ll, calculate_z, gaussian_product
     #from utils.utils import get_same_padding
     from model.conv2d import Conv2d
 
@@ -389,7 +389,7 @@ class LevelBlockDown(nn.Module):
 
         return y, posterior_dist, prior_kl_dist
 
-    def forward_with_latent_reg(self, x_skip, y, lq, lp, t, variate_mask=None): 
+    def forward_with_latent_reg(self, x_skip, y, lq, lp, mode, t, variate_mask=None): 
         #return z = arg min -lq . log q(z|x) -lp log p(z)
         if self.first_block:
             # no features from the top in the first block
@@ -416,7 +416,15 @@ class LevelBlockDown(nn.Module):
             y_post,
             prior_stats=prior_kl_dist if hparams.model.use_residual_distribution else None)
 
-        z_reg = interpolate(posterior_dist, prior_kl_dist, lq, lp)
+        if mode == 'map':
+            z_reg = interpolate(posterior_dist, prior_kl_dist, lq, lp)
+        elif mode == 'sample':
+            mean, cov = gaussian_product(posterior_dist, prior_kl_dist, lq, lp)# TODO
+            z_reg, mean, std = calculate_z(mean=mean, std=cov**(0.5))
+        else:
+            raise ValueError(f"expecting mode to be either \'map\' or \'sample\', got {mode}")
+         
+
         
         if variate_mask is not None:
             variate_mask = torch.Tensor(variate_mask)[None, :, None, None].cuda()

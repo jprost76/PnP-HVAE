@@ -270,7 +270,7 @@ class TopDown(torch.nn.Module):
 
         return y, posterior_dist_list, prior_kl_dist_list,
 
-    def forward_with_latent_reg(self, skip_list, beta, T, variate_masks=None, sample_from_prior_after=None):
+    def forward_with_latent_reg(self, skip_list, beta, T, mode, variate_masks=None, sample_from_prior_after=None):
         if sample_from_prior_after is None:
             sample_from_prior_after = len (self.levels_down_upsample) + sum([len(level) for level in self.levels_down])
     #return z = arg max lq . log q(z|x) + lp log p(z)
@@ -288,7 +288,7 @@ class TopDown(torch.nn.Module):
                 lq = beta
                 lp = 1/T[layer_idx]**2 - beta
                 y, posterior_dist, prior_kl_dist, log_pzk = level_down_upsample.forward_with_latent_reg(skip_input, y,
-                                                                     lq, lp, t=T[layer_idx], variate_mask=variate_masks[layer_idx])
+                                                                     lq, lp, mode=mode, t=T[layer_idx], variate_mask=variate_masks[layer_idx])
             else:
                 y, _, log_pzk = level_down_upsample.sample_from_prior(y, temperature=T[layer_idx])
                 posterior_dist = None
@@ -303,7 +303,7 @@ class TopDown(torch.nn.Module):
                 if layer_idx < sample_from_prior_after:
                     lq = beta
                     lp = 1/T[layer_idx]**2 - beta
-                    y, posterior_dist, prior_kl_dist, log_pzk = layer.forward_with_latent_reg(skip_input, y, lq, lp, t=T[layer_idx], variate_mask=variate_masks[layer_idx])
+                    y, posterior_dist, prior_kl_dist, log_pzk = layer.forward_with_latent_reg(skip_input, y, lq, lp, mode=mode, t=T[layer_idx], variate_mask=variate_masks[layer_idx])
                 else:
                     y, _, log_pzk = layer.sample_from_prior(y, temperature=T[layer_idx])
                     posterior_dist = None

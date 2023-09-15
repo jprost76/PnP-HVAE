@@ -111,8 +111,33 @@ def interpolate(post_stats, prior_stats, lq, lp):
     return z
 
     
+def gaussian_product(post_stats, prior_stats, lq, lp):
+    """return m and S so that N(m, S) \propto N(m1, S1)*N(m2, S2)
+    Args:
+        m1 (torch.Tensor): mean of gaussian 1
+        S1 (torch.Tensor): (diagonal) Covariance matrix of gaussian 1
+        m2 (torch.Tensor): mean of gaussian 2
+        S2 (torch.Tensor): (diagonal) Covariance matrix of gaussian 1
+    """
+    softplus = torch.nn.Softplus(beta=hparams.model.gradient_smoothing_beta)
+    if hparams.model.distribution_base == 'std':
+        mp, stdp = prior_stats
+        mq, stdq = post_stats
+    elif hparams.model.distribution_base == 'logstd':
+        mp, logstdp = prior_stats
+        mq, logstdq = post_stats
+        stdp = torch.exp(hparams.model.gradient_smoothing_beta * logstdp)
+        stdq = torch.exp(hparams.model.gradient_smoothing_beta * logstdq)
+    else:
+        raise ValueError(f'distribution base {hparams.model.distribution_base} not known!!')
+    a = lq / (stdq**2)
+    b = lp / (stdp**2)
+    # covariance matrix
+    cov = 1 / (a+b)
+    # mean
+    mean = (a*mq + b*mp) / (a+b)
+    return mean, cov
 
-    
 @torch.jit.script
 def calculate_z(mean, std):
     eps = torch.empty_like(mean, device=torch.device('cuda')).normal_(0., 1.)

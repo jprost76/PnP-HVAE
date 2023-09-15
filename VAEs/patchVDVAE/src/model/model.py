@@ -325,13 +325,13 @@ def reconstruction_step(model, inputs, variates_masks=None, mode='recon'):
         else:
             raise ValueError(f'Unknown Mode {mode}')
 
-def latent_regularization_step(model, inputs, beta, T, variates_masks=None):
+def latent_regularization_step(model, inputs, beta, T, mode='map', variates_masks=None):
     """reconstruct x while regularizing the latent code toward the prior:
     z_l = \arg\min_{u_l} -beta \log q(u_l|z<l, x) - (1/T[l]**2 - beta) \log p(u_l|z<l)
     """
     model.eval()
     with torch.no_grad():
-        outputs, posterior_dist_list, prior_kl_dist_list, log_pzk_list = model.forward_with_latent_reg(inputs, beta, T, variates_masks)
+        outputs, posterior_dist_list, prior_kl_dist_list, log_pzk_list = model.forward_with_latent_reg(inputs, beta, T, mode=mode, variates_masks)
     outputs = model.top_down.sample(predictions)
     # TODO: compute log p(z)
     return outputs

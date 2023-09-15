@@ -17,6 +17,7 @@ from utils import utils_scheduler as scheduler
 from utils import utils_image as utils
 
 def get_log_path(cfg):
+    # TODO : log adam
     path = os.path.join(cfg.logdir, cfg.exp.name, cfg.mode, cfg.exp.type)
     if cfg.exp.type == 'sr':
         path = os.path.join(path, f'sf_{cfg.exp.sf}')
@@ -84,10 +85,12 @@ def main(cfg : DictConfig) -> None:
         # run 
         if not cfg.backprop:
             solver = PnPHVAE(cfg, vae, data_term, logger, state_fn)
+            xk1, muk1, metrics = solver.solve(x0)
+            xk1 = muk1.cpu()
         else:
             solver = AdamBaseline(cfg, vae, data_term, logger, state_fn)
-        xk1, muk1, metrics = solver.solve(x0)
-        xk1 = muk1.cpu()
+            xk1, metrics = solver.solve(x0)
+            xk1 = xk1.cpu()
 
         # lpips (input must be in range [-1, 1])
         llpips = lpips_loss_fn((xk1 - 0.5) * 2, (xpt - 127.5)/127.5).item()
