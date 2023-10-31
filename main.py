@@ -56,15 +56,15 @@ def main(cfg : DictConfig) -> None:
         # init forward model
         
         if cfg.exp.type == 'sr':
-            data_term = SRDegradationOperator(sf=cfg.exp.sf, noise_std=cfg.exp.noise_lvl/255, kernel_path=cfg.exp.kernel, xshape=xpt.shape, backprop=False) 
+            data_term = SRDegradationOperator(sf=cfg.exp.sf, noise_std=cfg.exp.noise_lvl/255, kernel_path=cfg.exp.kernel, xshape=xpt.shape, backprop=cfg.backprop) 
         elif cfg.exp.type == 'deblurring':
-            data_term = BlurringOperator(noise_std=cfg.exp.noise_lvl/255, kernel_path=cfg.exp.kernel, xshape=xpt.shape, backprop=False)
+            data_term = BlurringOperator(noise_std=cfg.exp.noise_lvl/255, kernel_path=cfg.exp.kernel, xshape=xpt.shape, backprop=cfg.backprop)
         elif cfg.exp.type == 'inpainting':
             mask = np.load(cfg.exp.mask)
             mask = torch.tensor(mask).unsqueeze(0).type_as(xpt)
             mask = crop(mask, size_multiple=vae.receptive_field)
             #mask_name = get_fname(cfg.exp.mask)
-            data_term = InpaintingOperator(mask, noise_std=cfg.exp.noise_lvl/255)
+            data_term = InpaintingOperator(mask, noise_std=cfg.exp.noise_lvl/255, backprop=cfg.backprop)
         else:
             raise NotImplementedError(f'expecting cfg.exp.type in inpainting, sr, or deblurring, got {cfg.exp.type}')
         ypt = data_term.compute_y(xpt.cuda()/255)
