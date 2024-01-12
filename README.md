@@ -79,4 +79,4 @@ python main.py exp=face_inpainting log_images=True
 ```
 
 ## 3. Acknowledgements
-This repo is build upon VDVAE original REPO and efficient-vdvae repo and uses weights from pretrained VDVAE model.
+This repo is build upon [VDVAE original repository](https://github.com/openai/vdvae)  and [efficient-vdvae repository](https://github.com/Rayhane-mamah/Efficient-VDVAE).
