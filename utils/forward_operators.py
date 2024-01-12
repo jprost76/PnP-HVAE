@@ -246,7 +246,10 @@ class SRDegradationOperator():
         
     def get_x0(self):
         C, H, W = self.yshape
-        ynp = np.asarray(self.ycp.get()).reshape(self.yshape).transpose(1, 2, 0)
+        if self._backprop:
+            ynp = np.asarray(self.ypt.squeeze(0).detach().cpu()).transpose(1, 2, 0)
+        else:
+            ynp = np.asarray(self.ycp.get()).reshape(self.yshape).transpose(1, 2, 0)
         xnp = cv2.resize(ynp, (W*self.sf, H*self.sf), interpolation=cv2.INTER_CUBIC) # TODO : resize on cp?
         xnp = shift_pixel(xnp, self.sf)
         xpt = torch.as_tensor(xnp).permute(2, 0, 1).unsqueeze(0)
@@ -283,9 +286,10 @@ class SRDegradationOperator():
             self.Atycp = self.SH.rmatvec(self.ycp)
 
 class InpaintingOperator():
-    def __init__(self, Mask, noise_std):
+    def __init__(self, Mask, noise_std, backprop=False):
         self.M = Mask.cuda()
         self.noise_std = noise_std
+        self.backprop = backprop
         
     def forward_linear(self, xpt):
         #self.M = self.M.to(xpt.device)
