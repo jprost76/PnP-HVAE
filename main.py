@@ -76,7 +76,8 @@ def main(cfg : DictConfig) -> None:
         logdir = get_log_path(cfg)
         imname = os.path.splitext(path.split('/')[-1])[0]
         vaename = 'vdvae' if cfg.exp.vae == 'vdvae' else cfg.exp.vae_conf
-        xpname = f'{imname}_{vaename}_T_{cfg.exp.temperature.name}_sdec_{cfg.exp.decoder_std}'
+        algo = 'adam' if cfg.backprop else 'pnp'
+        xpname = f'{imname}_{vaename}_T_{cfg.exp.temperature.name}_sdec_{cfg.exp.decoder_std}_algo_{algo}'
         logger = loggers.JSONlogger(cfg, logdir, xpname) 
 
         # state fonction
@@ -103,10 +104,14 @@ def main(cfg : DictConfig) -> None:
 
         # save metrics
         logpath = os.path.join(logdir, 'logs.csv')
+        if not os.path.isfile(logpath):
+            with open(logpath, 'a+') as f:
+                f.write(f'img;algo;T;decoder_std;PSNR;SSIM;LPIPS;')
+                f.write('\n')
         with open(logpath, 'a+') as f:
-            f.write(f'{imname};{psnr:.3f};{ssim:.3f};{llpips:.3f};')
+            f.write(f'{imname};{algo};{cfg.exp.temperature.name};{cfg.exp.decoder_std};{psnr:.3f};{ssim:.3f};{llpips:.3f};')
             f.write('\n')
-        print(f'{imname}; PSNR:{psnr:.3f}; SSIM:{ssim:.3f};LPIPS:{llpips:.3f};')
+        print(f'{imname};{algo};PSNR:{psnr:.3f}; SSIM:{ssim:.3f};LPIPS:{llpips:.3f};')
         # save images
 
         ypath = os.path.join(logdir, f'{imname}_y.png')
